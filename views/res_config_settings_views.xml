@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ================================================================
+         Add a Legacy HR Integration block to the Real Estate settings app
+         defined by rental_management.
+         ================================================================ -->
+    <record id="res_config_settings_view_form_hr_sync" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.hr.sync</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id"
+               ref="rental_management.res_config_settings_view_form_rental"/>
+        <field name="arch" type="xml">
+            <app name="rental_management" position="inside">
+                <block title="Legacy HR Integration" name="rental_management_hr_sync">
+                    <setting help="Refresh Odoo employees daily from the legacy HR system. Employees are never created, archived or deleted by the sync.">
+                        <field name="hr_sync_enabled"/>
+                        <div class="content-group" invisible="not hr_sync_enabled">
+                            <div class="mt16">
+                                <button name="action_sync_legacy_employees_now"
+                                        type="object"
+                                        string="Sync Now"
+                                        class="btn-secondary"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting help="Root of the legacy HR service"
+                             invisible="not hr_sync_enabled">
+                        <field name="hr_sync_base_url" required="hr_sync_enabled"
+                               placeholder="http://5.37.56.75:8082"/>
+                    </setting>
+                    <setting help="Path appended to the base URL. {company_code} and {employee_code} are replaced per employee."
+                             invisible="not hr_sync_enabled">
+                        <field name="hr_sync_employee_path" required="hr_sync_enabled"
+                               placeholder="/api/Employee/{company_code},{employee_code}"/>
+                    </setting>
+                    <setting help="How long to wait for the legacy service before giving up"
+                             invisible="not hr_sync_enabled">
+                        <field name="hr_sync_timeout"/>
+                        <span>Seconds</span>
+                    </setting>
+                    <setting help="Cap on how many employees one daily run refreshes, oldest sync first. 0 syncs everyone each run."
+                             invisible="not hr_sync_enabled">
+                        <field name="hr_sync_batch_limit"/>
+                    </setting>
+                </block>
+            </app>
+        </field>
+    </record>
+</odoo>

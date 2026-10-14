@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ================================================================
+         Legacy HR lookup row at the top of the wizard's Employee Details
+         group: company code + employee code + a Sync button that fetches
+         the employee and selects them below.
+         ================================================================ -->
+    <record id="occupy_wizard_form_view_legacy_hr" model="ir.ui.view">
+        <field name="name">occupy.wizard.form.legacy.hr</field>
+        <field name="model">occupy.wizard</field>
+        <field name="inherit_id" ref="rental_management.occupy_wizard_form_view" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='employee_id']" position="before">
+                <label for="legacy_company_code" string="HR Sync" />
+                <div class="o_row">
+                    <field name="legacy_company_code"
+                        class="oe_inline"
+                        placeholder="Company Code" />
+                    <field name="legacy_employee_code"
+                        class="oe_inline"
+                        placeholder="Employee Code" />
+                    <button name="action_fetch_legacy_employee"
+                        type="object"
+                        string="Sync"
+                        icon="fa-refresh"
+                        class="btn-secondary" />
+                </div>
+            </xpath>
+            <xpath expr="//field[@name='occupant_id']" position="attributes">
+                <attribute name="required">partner_type == 'non_company'</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
