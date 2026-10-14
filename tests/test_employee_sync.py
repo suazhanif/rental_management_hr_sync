@@ -15,6 +15,11 @@ EMPLOYEE_PATH = (
     "odoo.addons.rental_management_hr_sync.models.hr_employee.HrEmployee"
 )
 
+# 1x1 PNG
+IMAGE_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
+
 PAYLOAD = {
     "companyCode": "B",
     "empCode": 9483,
@@ -23,6 +28,12 @@ PAYLOAD = {
     "empDeptName": "IT",
     "locationCode": "01",
     "locationName": "WATTAYAH",
+    "eMail": "karem09483@sbgoman.com",
+    "phone": "92321871",
+    "civilCardNo": "62275522",
+    "grade": "MM7",
+    "designation": "ASM - IT",
+    "empImage": IMAGE_B64,
 }
 
 
@@ -96,6 +107,33 @@ class TestLegacyEmployeeSync(TransactionCase):
         before = self.Employee.search_count([])
         self._cron()
         self.assertEqual(self.Employee.search_count([]), before)
+
+    def test_new_api_fields_are_mapped(self):
+        self._cron()
+        self.employee.invalidate_recordset()
+        self.assertEqual(self.employee.work_email, "karem09483@sbgoman.com")
+        self.assertEqual(self.employee.mobile_phone, "92321871")
+        self.assertEqual(self.employee.identification_id, "62275522")
+        self.assertEqual(self.employee.emp_grade, "MM7")
+        self.assertEqual(self.employee.emp_designation, "ASM - IT")
+        self.assertEqual(self.employee.job_title, "ASM - IT")
+        self.assertTrue(self.employee.image_1920)
+        self.assertTrue(self.employee.legacy_image_checksum)
+
+    def test_unchanged_image_is_not_rewritten(self):
+        self._cron()
+        self.employee.invalidate_recordset()
+        values = self.Employee._legacy_employee_values(PAYLOAD)
+        self.assertNotIn("image_1920", self.employee._legacy_changes(values))
+
+    def test_invalid_image_is_ignored(self):
+        self._cron()
+        self.employee.invalidate_recordset()
+        checksum = self.employee.legacy_image_checksum
+        self._cron(payload=dict(PAYLOAD, empImage="not-an-image!!"))
+        self.employee.invalidate_recordset()
+        self.assertEqual(self.employee.legacy_image_checksum, checksum)
+        self.assertTrue(self.employee.image_1920)
 
     # -- outcome flagging -------------------------------------------------
     def test_unknown_employee_is_flagged_not_archived(self):
