@@ -10,7 +10,11 @@ never created, archived or deleted here; an employee the legacy system does
 not know is flagged on the record for someone to look at.
 """
 import logging
-
+import base64
+import binascii
+import hashlib
+import logging
+import re
 import requests
 
 from odoo import _, api, fields, models
@@ -32,8 +36,15 @@ LEGACY_FIELD_MAP = {
     "locationCode": "location_code",
     "locationName": "location_name",
     "empName": "name",
+    "eMail": "work_email",
+    "phone": "mobile_phone",
+    "civilCardNo": "identification_id",
+    "grade": "emp_grade",
+    "designation": "emp_designation",
 }
-
+# Base64 photo; handled separately so it is only rewritten when it changes.
+LEGACY_IMAGE_KEY = "empImage"
+_DATA_URI_PREFIX = re.compile(r"^data:image/[\w.+-]+;base64,", re.IGNORECASE)
 
 class HrEmployee(models.Model):
     _inherit = "hr.employee"
@@ -59,6 +70,9 @@ class HrEmployee(models.Model):
         copy=False,
     )
     legacy_sync_message = fields.Char("Legacy Sync Message", readonly=True, copy=False)
+    emp_grade = fields.Char("Legacy Grade", copy=False)
+    emp_designation = fields.Char("Legacy Designation", copy=False)
+    legacy_image_checksum = fields.Char(copy=False, readonly=True)
 
     # -------------------------------------------------------------------------
     # Configuration
@@ -155,6 +169,21 @@ class HrEmployee(models.Model):
         return "" if value is None else str(value).strip()
 
     @api.model
+    def _legacy_image(self, record):
+        """(base64, checksum) of the legacy photo, or None when absent/invalid."""
+        value = self._legacy_value(record, LEGACY_IMAGE_KEY)
+        if not value:
+            return None
+        value = _DATA_URI_PREFIX.sub("", value).replace("\n", "").replace("\r", "")
+        try:
+            if not base64.b64decode(value, validate=True):
+                return None
+        except (binascii.Error, ValueError):
+            _logger.warning("Legacy HR sync: ignoring invalid employee image data.")
+            return None
+        return value, hashlib.sha1(value.encode()).hexdigest()
+
+    @api.model
     def _legacy_employee_values(self, record):
         """Map a legacy payload onto writable hr.employee values.
 
@@ -166,7 +195,34 @@ class HrEmployee(models.Model):
             value = self._legacy_value(record, key)
             if value:
                 values[field_name] = value
+        if values.get("work_email") and "@" not in values["work_email"]:
+            values.pop("work_email")
+        if values.get("emp_designation"):
+            values["job_title"] = values["emp_designation"]
+        image = self._legacy_image(record)
+        if image:
+            values["image_1920"], values["legacy_image_checksum"] = image
         return values
+
+    def _legacy_changes(self, values):
+        """Subset of ``values`` that differs from this employee.
+
+        The photo is compared through its checksum so an unchanged image is
+        not re-written (and re-resized) on every run.
+        """
+        self.ensure_one()
+        changes = {}
+        for field_name, value in values.items():
+            if field_name == "image_1920":
+                continue
+            if field_name == "legacy_image_checksum":
+                if value != self.legacy_image_checksum or not self.image_1920:
+                    changes["image_1920"] = values["image_1920"]
+                    changes["legacy_image_checksum"] = value
+                continue
+            if (self[field_name] or "") != value:
+                changes[field_name] = value
+        return changes
 
     # -------------------------------------------------------------------------
     # Sync
@@ -189,15 +245,9 @@ class HrEmployee(models.Model):
                 code=self.employee_code,
                 company=company_code,
             )
-        changes = self._legacy_employee_values(record)
-        changes = {
-            field: value
-            for field, value in changes.items()
-            if self[field] != value
-        }
+        changes = self._legacy_changes(self._legacy_employee_values(record))
         if changes:
             self.write(changes)
-        return "synced", False
 
     @api.model
     def _company_for_legacy_code(self, company_code):
@@ -275,11 +325,7 @@ class HrEmployee(models.Model):
                 )
             )
         if employee:
-            changes = {
-                field: value
-                for field, value in values.items()
-                if employee[field] != value
-            }
+            changes = employee._legacy_changes(values)
             if changes:
                 employee.write(changes)
         else:
