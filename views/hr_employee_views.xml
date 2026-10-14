@@ -20,6 +20,10 @@
                        invisible="not location_code"/>
                 <field name="location_name" readonly="1"
                        invisible="not location_name"/>
+                <field name="emp_grade" readonly="1"
+                       invisible="not emp_grade"/>
+                <field name="emp_designation" readonly="1"
+                       invisible="not emp_designation"/>
                 <field name="legacy_sync_status" readonly="1"
                        invisible="not legacy_sync_status"/>
                 <field name="legacy_sync_date" readonly="1"
